@@ -1,0 +1,39 @@
+openapi: 3.0.1
+info:
+  title: DreamSquad FF API
+  version: 1.0.0
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: {type: string}
+              email: {type: string}
+              password: {type: string}
+      responses:
+        '201':
+          description: User registered
+        '400':
+          description: Invalid input or user exists
+  /auth/login:
+    post:
+      summary: Login with email and password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: {type: string}
+                password: {type: string}
+      responses:
+        '200':
+          description: JWT token returned
+        '401':
+          description: Invalid credentials
+  
