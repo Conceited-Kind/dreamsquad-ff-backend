@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/home/allan/Phase4/dreamsquad-ff-backend/venv"
+VIRTUAL_ENV="/home/allan/Phase4/Football-API/dreamsquad-ff-backend/venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
