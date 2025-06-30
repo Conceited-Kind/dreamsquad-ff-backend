@@ -1,0 +1,139 @@
+openapi: 3.0.1
+info:
+  title: DreamSquad FF API
+  version: 1.0.0
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: {type: string}
+                email: {type: string}
+                password: {type: string}
+      responses:
+        '201': {description: User registered}
+        '400': {description: Invalid input or user exists}
+  /auth/login:
+    post:
+      summary: Login with email and password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: {type: string}
+                password: {type: string}
+      responses:
+        '200': {description: JWT token returned}
+        '401': {description: Invalid credentials}
+  /auth/google:
+    post:
+      summary: Login with Google OAuth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: {type: string}
+      responses:
+        '200': {description: JWT token returned}
+        '400': {description: Invalid token}
+  /players:
+    get:
+      summary: Get list of players for drafting
+      responses:
+        '200': {description: List of players}
+  /players/sync:
+    post:
+      summary: Sync players from API-Football
+      responses:
+        '201': {description: Players synced}
+        '400': {description: API error}
+  /team/draft:
+    post:
+      summary: Add player to user's team
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                player_id: {type: integer}
+                league_id: {type: integer}
+      responses:
+        '201': {description: Player drafted}
+        '400': {description: Invalid input or budget exceeded}
+  /team:
+    get:
+      summary: Get user's team
+      responses:
+        '200': {description: Team details}
+        '404': {description: No team found}
+    put:
+      summary: Update team name
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+      responses:
+        '200': {description: Team updated}
+    delete:
+      summary: Delete user's team
+      responses:
+        '200': {description: Team deleted}
+  /leagues:
+    post:
+      summary: Create a new league
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                is_private: {type: boolean}
+      responses:
+        '201': {description: League created}
+    get:
+      summary: Get list of available leagues
+      responses:
+        '200': {description: List of leagues}
+  /leagues/join:
+    post:
+      summary: Join a league by code
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: {type: string}
+      responses:
+        '200': {description: Joined league}
+        '400': {description: Invalid code}
+  /scoreboard:
+    get:
+      summary: Get scores for a league
+      parameters:
+        - name: league_id
+          in: query
+          type: integer
+          required: true
+      responses:
+        '200': {description: League scores}
+  /scoreboard/update:
+    post:
+      summary: Update scores based on API data
+      responses:
+        '201': {description: Scores updated}
+        '400': {description: API error}

@@ -37,4 +37,7 @@ coverage/
 __pycache__/
 *.pyc
 dreamsquad.db
+*.sqlite
 
+migrations
+token.txt
