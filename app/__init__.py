@@ -45,6 +45,7 @@ def create_app():
                     "http://127.0.0.1:5173",
                     "https://your-production-domain.com"
                     "https://jade-griffin-db7ea0.netlify.app"
+                    "https://dreamsquad-ff-backend-2.onrender.com"
                 ],
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "allow_headers": [
