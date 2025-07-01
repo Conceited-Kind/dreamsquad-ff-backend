@@ -13,7 +13,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
-    # --- Flasgger Configuration for JWT ---
+    # Enhanced Swagger Configuration
     app.config['SWAGGER'] = {
         'title': 'DreamSquad FF API',
         'uiversion': 3,
@@ -35,15 +35,34 @@ def create_app():
     migrate.init_app(app, db)
     jwt.init_app(app)
     
-    # --- FINAL CORS CONFIGURATION ---
-    # This more detailed configuration allows the necessary headers and methods
-    # from your frontend's origin, which will fix the error.
+    # Comprehensive CORS Configuration
     CORS(
         app, 
-        resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}}, 
-        supports_credentials=True
+        resources={
+            r"/*": {
+                "origins": [
+                    "http://localhost:5173", 
+                    "http://127.0.0.1:5173",
+                    "https://your-production-domain.com"
+                    "https://jade-griffin-db7ea0.netlify.app"
+                ],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": [
+                    "Content-Type", 
+                    "Authorization",
+                    "X-Requested-With",
+                    "Access-Control-Allow-Origin"
+                ],
+                "supports_credentials": True,
+                "expose_headers": [
+                    "Content-Type", 
+                    "Authorization",
+                    "Access-Control-Allow-Origin"
+                ],
+                "max_age": 600
+            }
+        }
     )
-    # --- END CORS CONFIGURATION ---
 
     # Register blueprints
     from .routes import auth, players, teams, leagues, dashboard, scores
@@ -54,9 +73,9 @@ def create_app():
     app.register_blueprint(dashboard.bp)
     app.register_blueprint(scores.bp)
 
-    # Health check route
     @app.route('/')
     def index():
         return {"message": "Welcome to the DreamSquad API!", "status": "ok"}
 
     return app
+

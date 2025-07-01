@@ -10,7 +10,6 @@ bp = Blueprint('leagues', __name__, url_prefix='/leagues')
 def generate_league_code():
     return str(uuid.uuid4()).upper()[:8]
 
-# --- No changes to these routes ---
 @bp.route('/my-leagues', methods=['GET'])
 @jwt_required()
 def get_my_leagues():
@@ -52,8 +51,19 @@ def get_public_leagues():
 def get_league_details(league_id):
     league = League.query.options(joinedload(League.teams).joinedload(Team.user)).get_or_404(league_id)
     standings_data = sorted(league.teams, key=lambda t: t.total_points, reverse=True)
-    standings_response = [{'rank': i + 1, 'team_name': team.name, 'owner_name': team.user.username, 'points': team.total_points} for i, team in enumerate(standings_data)]
-    return jsonify({'id': league.id, 'name': league.name, 'code': league.code, 'standings': standings_response}), 200
+    standings_response = [{
+        'rank': i + 1,
+        'team_name': team.name,
+        'owner_name': team.user.username,
+        'points': team.total_points
+    } for i, team in enumerate(standings_data)]
+    
+    return jsonify({
+        'id': league.id,
+        'name': league.name,
+        'code': league.code,
+        'standings': standings_response
+    }), 200
 
 @bp.route('/create', methods=['POST'])
 @jwt_required()
@@ -74,7 +84,12 @@ def create_league():
 
     db.session.add(new_league)
     db.session.commit()
-    return jsonify({'message': f"League '{name}' created successfully.", 'league_code': new_league.code}), 201
+    
+    return jsonify({
+        'message': f"League '{name}' created successfully.",
+        'league_id': new_league.id,  # Added this line
+        'league_code': new_league.code
+    }), 201
 
 @bp.route('/join', methods=['POST'])
 @jwt_required()
@@ -105,13 +120,9 @@ def join_league():
     db.session.commit()
     return jsonify({'message': f'Successfully joined {league.name}'}), 200
 
-
-# --- NEW ENDPOINTS START HERE ---
-
 @bp.route('/<int:league_id>/leave', methods=['POST'])
 @jwt_required()
 def leave_league(league_id):
-    """ Allows a user to leave a league they are a member of. """
     user_id = get_jwt_identity()
     league = League.query.get_or_404(league_id)
     user = User.query.get(user_id)
@@ -124,7 +135,6 @@ def leave_league(league_id):
 
     user.leagues.remove(league)
     
-    # Also remove the user's team from the league
     team = Team.query.filter_by(user_id=user_id).first()
     if team and team.league_id == league_id:
         team.league_id = None
@@ -132,22 +142,18 @@ def leave_league(league_id):
     db.session.commit()
     return jsonify({'message': f'You have successfully left {league.name}.'}), 200
 
-
 @bp.route('/<int:league_id>', methods=['DELETE'])
 @jwt_required()
 def delete_league(league_id):
-    """ Allows the owner to delete a league entirely. """
     user_id = get_jwt_identity()
     league = League.query.get_or_404(league_id)
 
     if league.owner_id != user_id:
         return jsonify({'message': 'Only the league owner can delete this league.'}), 403
 
-    # Un-associate all teams from the league before deleting
     for team in league.teams:
         team.league_id = None
     
     db.session.delete(league)
     db.session.commit()
     return jsonify({'message': f'League "{league.name}" has been deleted.'}), 200
-

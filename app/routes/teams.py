@@ -3,9 +3,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from .. import db
 from ..models import Team, Player
 
-bp = Blueprint('teams', __name__, url_prefix='/team')
+bp = Blueprint('teams', __name__, url_prefix='/teams')
 
-@bp.route('', methods=['GET'])
+@bp.route('/my-team', methods=['GET', 'OPTIONS'])
 @jwt_required()
 def get_team():
     """
@@ -18,6 +18,9 @@ def get_team():
       404:
         description: Team not found for this user.
     """
+    print(f"Request method: {request.method}, Headers: {request.headers}")
+    if request.method == 'OPTIONS':
+        return '', 200
     user_id = get_jwt_identity()
     team = Team.query.filter_by(user_id=user_id).first_or_404()
     
@@ -37,7 +40,7 @@ def get_team():
         } for p in team.players]
     }), 200
 
-@bp.route('/draft', methods=['POST'])
+@bp.route('/draft', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def draft_player():
     """
@@ -58,32 +61,44 @@ def draft_player():
       400:
         description: Invalid request (e.g., team full, insufficient budget).
     """
+    print(f"Request method: {request.method}, Headers: {request.headers}")
+    if request.method == 'OPTIONS':
+        return '', 200
     user_id = get_jwt_identity()
     data = request.get_json()
     player_id = data.get('player_id')
 
     if not player_id:
+        print(f"Draft failed: No player_id provided")
         return jsonify({'message': 'Player ID is required'}), 400
 
     team = Team.query.filter_by(user_id=user_id).first_or_404()
     player = Player.query.get_or_404(player_id)
 
     if len(team.players) >= 11:
+        print(f"Draft failed: Team full for user {user_id}")
         return jsonify({'message': 'Your team is full (11 players).'}), 400
     
     if player in team.players:
+        print(f"Draft failed: Player {player_id} already in team")
         return jsonify({'message': 'This player is already in your team.'}), 400
 
     if team.budget_left < player.value:
+        print(f"Draft failed: Insufficient budget for player {player_id}")
         return jsonify({'message': 'Insufficient budget to draft this player.'}), 400
 
     team.players.append(player)
     team.budget_left -= player.value
-    db.session.commit()
+    try:
+        db.session.commit()
+        print(f"Draft success: Player {player_id} added to team {team.id}")
+        return jsonify({'message': f'{player.name} has been drafted to your team.'}), 201
+    except Exception as e:
+        db.session.rollback()
+        print(f"Draft error: {str(e)}")
+        return jsonify({'message': 'Error drafting player.'}), 500
 
-    return jsonify({'message': f'{player.name} has been drafted to your team.'}), 201
-
-@bp.route('/remove_player', methods=['POST'])
+@bp.route('/remove_player', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def remove_player():
     """
@@ -103,22 +118,34 @@ def remove_player():
         description: Player removed successfully.
       400:
         description: Player not in team.
+      500:
+        description: Database error.
     """
+    print(f"Request method: {request.method}, Headers: {request.headers}")
+    if request.method == 'OPTIONS':
+        return '', 200
     user_id = get_jwt_identity()
     data = request.get_json()
     player_id = data.get('player_id')
 
     if not player_id:
+        print(f"Remove failed: No player_id provided")
         return jsonify({'message': 'Player ID is required'}), 400
         
     team = Team.query.filter_by(user_id=user_id).first_or_404()
     player = Player.query.get_or_404(player_id)
 
     if player not in team.players:
+        print(f"Remove failed: Player {player_id} not in team {team.id}")
         return jsonify({'message': 'This player is not in your team.'}), 400
 
     team.players.remove(player)
     team.budget_left += player.value
-    db.session.commit()
-
-    return jsonify({'message': f'{player.name} has been removed from your team.'}), 200
+    try:
+        db.session.commit()
+        print(f"Remove success: Player {player_id} removed from team {team.id}")
+        return jsonify({'message': f'{player.name} has been removed from your team.'}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Remove error: {str(e)}")
+        return jsonify({'message': 'Error removing player.'}), 500

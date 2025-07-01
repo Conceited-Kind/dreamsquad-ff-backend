@@ -4,10 +4,15 @@ from .. import db
 from ..models import User, Team
 import requests
 import os
+from flask_cors import cross_origin, CORS  # Import both for global and route-specific use
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+# Apply global CORS configuration for all auth routes
+CORS(bp, resources={r"/auth/*": {"origins": ["https://jade-griffin-db7ea0.netlify.app"], "supports_credentials": True}})
+
 @bp.route('/register', methods=['POST'])
+@cross_origin(origin=['https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)  # Route-specific CORS
 def register():
     """
     Register a new user and create their default team.
@@ -54,6 +59,7 @@ def register():
     return jsonify({'message': f'User {username} registered successfully'}), 201
 
 @bp.route('/login', methods=['POST'])
+@cross_origin(origin=['https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)  # Route-specific CORS
 def login():
     """
     Log in a user and return a JWT access token.
@@ -90,8 +96,8 @@ def login():
 
     return jsonify({'message': 'Invalid credentials'}), 401
 
-# --- FINAL GOOGLE LOGIN FIX ---
-@bp.route('/google', methods=['POST', 'OPTIONS']) # Add 'OPTIONS' to the methods
+@bp.route('/google', methods=['POST', 'OPTIONS'])
+@cross_origin(origin=['https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)  # Route-specific CORS
 def google_login():
     """
     Login or Register with a Google ID Token.
@@ -109,7 +115,9 @@ def google_login():
       200:
         description: JWT token returned.
       400:
-        description: Invalid Google token.
+        description: Invalid Google token or duplicate email.
+      500:
+        description: Internal server error.
     """
     # Handle the browser's preflight request
     if request.method == 'OPTIONS':
@@ -126,7 +134,7 @@ def google_login():
             'https://www.googleapis.com/oauth2/v3/tokeninfo',
             params={'id_token': google_token}
         )
-        response.raise_for_status() # Raise an exception for bad status codes
+        response.raise_for_status()  # Raise an exception for bad status codes
         data = response.json()
 
         if 'sub' not in data or 'email' not in data:
@@ -134,15 +142,19 @@ def google_login():
 
         google_id = data['sub']
         email = data['email']
-        username = data.get('name', email.split('@')[0]).replace(" ", "_")
+        base_username = data.get('name', email.split('@')[0]).replace(" ", "_")
 
-        # Find user by Google ID, or create a new one
+        # Handle duplicate username by appending a counter
+        username = base_username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base_username}{counter}"
+            counter += 1
+
         user = User.query.filter_by(google_id=google_id).first()
         if not user:
-            # If user with this google_id doesn't exist, check if the email is already taken
             if User.query.filter_by(email=email).first():
-                return jsonify({'message': f'An account with the email {email} already exists.'}), 400
-            
+                return jsonify({'message': f'An account with the email {email} already exists. Please log in with your existing credentials or use a different email.'}), 400
             user = User(username=username, email=email, google_id=google_id)
             db.session.add(user)
             db.session.flush()
@@ -151,6 +163,11 @@ def google_login():
             default_team = Team(name=f"{username}'s Team", user_id=user.id)
             db.session.add(default_team)
             db.session.commit()
+        else:
+            # Update username if it changed (e.g., due to Google profile update)
+            if user.username != username:
+                user.username = username
+                db.session.commit()
 
         # Create and return our own app's access token
         access_token = create_access_token(identity=user.id)

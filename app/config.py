@@ -9,3 +9,5 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI', 'sqlite:///dreamsquad.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS', 'False') == 'True'
     API_FOOTBALL_KEY = os.getenv('API_FOOTBALL_KEY')
+    SWAGGER_URL = '/apidocs'
+    API_URL = '/static/swagger.json'
