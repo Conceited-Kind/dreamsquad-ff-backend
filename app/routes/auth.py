@@ -1,18 +1,21 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token
+from google.oauth2 import id_token
+from google.auth.transport import requests
 from .. import db
 from ..models import User, Team
-import requests
-import os
-from flask_cors import cross_origin, CORS  # Import both for global and route-specific use
+from flask_cors import cross_origin, CORS
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-# Apply global CORS configuration for all auth routes
-CORS(bp, resources={r"/auth/*": {"origins": ["https://jade-griffin-db7ea0.netlify.app"], "supports_credentials": True}})
+# Apply global CORS configuration
+CORS(bp, resources={r"/auth/*": {"origins": [
+    "http://localhost:5173",
+    "https://jade-griffin-db7ea0.netlify.app"
+], "supports_credentials": True}})
 
 @bp.route('/register', methods=['POST'])
-@cross_origin(origin=['https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)  # Route-specific CORS
+@cross_origin(origins=['http://localhost:5173', 'https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)
 def register():
     """
     Register a new user and create their default team.
@@ -59,7 +62,7 @@ def register():
     return jsonify({'message': f'User {username} registered successfully'}), 201
 
 @bp.route('/login', methods=['POST'])
-@cross_origin(origin=['https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)  # Route-specific CORS
+@cross_origin(origins=['http://localhost:5173', 'https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)
 def login():
     """
     Log in a user and return a JWT access token.
@@ -97,7 +100,7 @@ def login():
     return jsonify({'message': 'Invalid credentials'}), 401
 
 @bp.route('/google', methods=['POST', 'OPTIONS'])
-@cross_origin(origin=['https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)  # Route-specific CORS
+@cross_origin(origins=['http://localhost:5173', 'https://jade-griffin-db7ea0.netlify.app'], supports_credentials=True)
 def google_login():
     """
     Login or Register with a Google ID Token.
@@ -110,7 +113,7 @@ def google_login():
         schema:
           type: object
           properties:
-            token: {type: string}
+            id_token: {type: string}
     responses:
       200:
         description: JWT token returned.
@@ -119,32 +122,24 @@ def google_login():
       500:
         description: Internal server error.
     """
-    # Handle the browser's preflight request
     if request.method == 'OPTIONS':
         return jsonify({'message': 'CORS preflight successful'}), 200
 
-    # Handle the actual POST request
-    google_token = request.get_json().get('token')
-    if not google_token:
-        return jsonify({'message': 'Missing Google token'}), 400
+    token = request.get_json().get('id_token')
+    if not token:
+        return jsonify({'message': 'Missing Google ID token'}), 400
 
     try:
-        # Verify the token with Google's servers
-        response = requests.get(
-            'https://www.googleapis.com/oauth2/v3/tokeninfo',
-            params={'id_token': google_token}
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            requests.Request(),
+            '390480519666-5d2b8en0e3slv374hhm696mrtq0l4l0e.apps.googleusercontent.com'
         )
-        response.raise_for_status()  # Raise an exception for bad status codes
-        data = response.json()
+        google_id = idinfo['sub']
+        email = idinfo['email']
+        base_username = idinfo.get('name', email.split('@')[0]).replace(" ", "_")
 
-        if 'sub' not in data or 'email' not in data:
-            return jsonify({'message': 'Invalid token data from Google'}), 400
-
-        google_id = data['sub']
-        email = data['email']
-        base_username = data.get('name', email.split('@')[0]).replace(" ", "_")
-
-        # Handle duplicate username by appending a counter
+        # Handle duplicate username
         username = base_username
         counter = 1
         while User.query.filter_by(username=username).first():
@@ -159,21 +154,18 @@ def google_login():
             db.session.add(user)
             db.session.flush()
 
-            # Create a default team for the new Google user
             default_team = Team(name=f"{username}'s Team", user_id=user.id)
             db.session.add(default_team)
             db.session.commit()
         else:
-            # Update username if it changed (e.g., due to Google profile update)
             if user.username != username:
                 user.username = username
                 db.session.commit()
 
-        # Create and return our own app's access token
         access_token = create_access_token(identity=user.id)
         return jsonify({'access_token': access_token, 'username': user.username}), 200
-        
-    except requests.RequestException as e:
+
+    except ValueError as e:
         return jsonify({'message': f'Token verification failed: {str(e)}'}), 400
     except Exception as e:
         db.session.rollback()
